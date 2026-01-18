@@ -27,7 +27,8 @@ export function InterviewRoom() {
 
     const connectWebSocket = () => {
         // Append token to URL
-        const wsUrl = `ws://localhost:8000/ws/interview?token=${token}`;
+        const wsBaseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+        const wsUrl = `${wsBaseUrl}/ws/interview?token=${token}`;
         wsRef.current = new WebSocket(wsUrl);
 
         wsRef.current.onopen = () => {
