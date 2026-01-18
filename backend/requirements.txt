@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+websockets
+python-multipart
+requests
+numpy
+opencv-python
+mediapipe
+edge-tts
+openai
+python-dotenv
+aiofiles
