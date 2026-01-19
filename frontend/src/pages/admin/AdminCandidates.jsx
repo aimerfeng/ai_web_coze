@@ -1,19 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Search, Filter, Eye, FileText, Video, MessageSquare, CheckCircle, XCircle, Send } from 'lucide-react';
+import { Search, Filter, Eye, FileText, Video, MessageSquare, CheckCircle, XCircle, Send, Download, Brain } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { AnimatePresence, motion } from 'framer-motion';
 
 export function AdminCandidates() {
   const [activeTab, setActiveTab] = useState('全部');
-  
-  // Mock Candidates Data (Will replace with API later)
-  const [candidates] = useState([
-    { id: 1, name: "张三", job: "高级 Python 工程师", status: "pending", score: null, appliedAt: "2024-01-15" },
-    { id: 2, name: "李四", job: "React 前端开发", status: "interviewing", score: 85, appliedAt: "2024-01-14" },
-    { id: 3, name: "王五", job: "产品经理", status: "review", score: 92, appliedAt: "2024-01-12" },
-    { id: 4, name: "赵六", job: "Python 实习生", status: "rejected", score: 60, appliedAt: "2024-01-10" },
-    { id: 5, name: "钱七", job: "高级 Python 工程师", status: "offered", score: 95, appliedAt: "2024-01-08" },
-  ]);
+  const [candidates, setCandidates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState(null); // For detail view
+  const { token } = useAuth();
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+  useEffect(() => {
+    const fetchCandidates = async () => {
+      try {
+        const res = await fetch(`${API_URL}/admin/applications`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setCandidates(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch candidates:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCandidates();
+  }, [token]);
 
   const statusMap = {
     'pending': { label: '待筛选', color: 'bg-yellow-100 text-yellow-700' },
@@ -63,70 +82,148 @@ export function AdminCandidates() {
         ))}
       </div>
 
-      <Card className="border-0 shadow-sm overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 border-b border-slate-100">
-            <tr>
-              <th className="px-6 py-4 font-semibold text-slate-700">候选人</th>
-              <th className="px-6 py-4 font-semibold text-slate-700">申请职位</th>
-              <th className="px-6 py-4 font-semibold text-slate-700">状态</th>
-              <th className="px-6 py-4 font-semibold text-slate-700">AI 评分</th>
-              <th className="px-6 py-4 font-semibold text-slate-700">申请时间</th>
-              <th className="px-6 py-4 font-semibold text-slate-700 text-right">操作</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {filteredCandidates.map((c) => (
-              <tr key={c.id} className="hover:bg-slate-50/80 transition-colors group">
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-xs">
-                      {c.name[0]}
-                    </div>
-                    <span className="font-medium text-slate-900">{c.name}</span>
+      <div className="space-y-4">
+        {filteredCandidates.map((c) => (
+          <motion.div 
+            layout
+            key={c.id} 
+            className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden"
+          >
+            <div 
+              className="p-6 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors"
+              onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-lg">
+                  {c.name[0]}
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900">{c.name}</h3>
+                  <p className="text-sm text-slate-500">{c.job}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-6">
+                {/* AI Tags Preview */}
+                {c.structured_resume && (
+                  <div className="hidden md:flex gap-2">
+                    {c.structured_resume.skills?.slice(0, 3).map((skill, i) => (
+                      <span key={i} className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-md">
+                        {skill}
+                      </span>
+                    ))}
+                    {c.structured_resume.education?.[0] && (
+                      <span className="px-2 py-1 bg-indigo-50 text-indigo-600 text-xs rounded-md flex items-center gap-1">
+                        <Brain className="w-3 h-3" />
+                        {c.structured_resume.education[0].school}
+                      </span>
+                    )}
                   </div>
-                </td>
-                <td className="px-6 py-4 text-slate-600">{c.job}</td>
-                <td className="px-6 py-4">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusMap[c.status].color}`}>
+                )}
+
+                <div className="flex items-center gap-4">
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusMap[c.status].color}`}>
                     {statusMap[c.status].label}
                   </span>
-                </td>
-                <td className="px-6 py-4">
-                  {c.score ? (
-                    <span className={`font-bold ${c.score >= 90 ? 'text-green-600' : c.score >= 80 ? 'text-blue-600' : 'text-orange-600'}`}>
-                      {c.score}
-                    </span>
-                  ) : (
-                    <span className="text-slate-400">-</span>
-                  )}
-                </td>
-                <td className="px-6 py-4 text-slate-500">{c.appliedAt}</td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="sm" title="查看详情">
-                      <Eye className="w-4 h-4 text-slate-500" />
-                    </Button>
-                    {c.status === 'review' && (
-                      <>
-                        <Button variant="ghost" size="sm" title="通过">
-                          <CheckCircle className="w-4 h-4 text-green-600" />
+                  <span className="text-sm text-slate-400">{c.appliedAt}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Expanded Details */}
+            <AnimatePresence>
+              {expandedId === c.id && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="border-t border-slate-100 bg-slate-50/50"
+                >
+                  <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Left: Resume Info */}
+                    <div className="md:col-span-2 space-y-4">
+                      <h4 className="font-bold text-slate-900 flex items-center gap-2">
+                        <FileText className="w-4 h-4" /> 简历详情
+                      </h4>
+                      
+                      {c.structured_resume ? (
+                        <div className="bg-white p-4 rounded-lg border border-slate-200 space-y-4">
+                          <div>
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">技能栈</span>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {c.structured_resume.skills?.map((s, i) => (
+                                <span key={i} className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded border border-blue-100">
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">教育经历</span>
+                            <ul className="mt-2 space-y-2">
+                              {c.structured_resume.education?.map((edu, i) => (
+                                <li key={i} className="text-sm text-slate-700 flex justify-between">
+                                  <span className="font-medium">{edu.school}</span>
+                                  <span className="text-slate-500">{edu.degree}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-slate-500 italic">未提供结构化简历数据</div>
+                      )}
+
+                      <div className="flex gap-3">
+                        {c.github_link && (
+                          <a href={c.github_link} target="_blank" rel="noreferrer">
+                            <Button variant="outline" size="sm">
+                              <Github className="w-4 h-4 mr-2" /> 查看 GitHub
+                            </Button>
+                          </a>
+                        )}
+                        <Button variant="outline" size="sm">
+                          <Download className="w-4 h-4 mr-2" /> 下载原始 PDF
                         </Button>
-                        <Button variant="ghost" size="sm" title="淘汰">
-                          <XCircle className="w-4 h-4 text-red-600" />
+                      </div>
+                    </div>
+
+                    {/* Right: Actions */}
+                    <div className="space-y-4 border-l border-slate-200 pl-6">
+                      <h4 className="font-bold text-slate-900">操作</h4>
+                      <div className="space-y-2">
+                        <Button className="w-full justify-start">
+                          <Video className="w-4 h-4 mr-2" /> 发起 AI 面试
                         </Button>
-                      </>
-                    )}
-                    <Button variant="ghost" size="sm" title="飞书通知">
-                      <Send className="w-4 h-4 text-blue-500" />
-                    </Button>
+                        <Button variant="secondary" className="w-full justify-start">
+                          <MessageSquare className="w-4 h-4 mr-2" /> 发送消息
+                        </Button>
+                        <div className="pt-4 flex gap-2">
+                          <Button variant="ghost" className="flex-1 text-green-600 hover:bg-green-50 hover:text-green-700">
+                            <CheckCircle className="w-4 h-4 mr-2" /> 通过
+                          </Button>
+                          <Button variant="ghost" className="flex-1 text-red-600 hover:bg-red-50 hover:text-red-700">
+                            <XCircle className="w-4 h-4 mr-2" /> 淘汰
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        ))}
+      </div>
     </div>
+  );
+}
+
+function Github({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.527.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.653.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+    </svg>
   );
 }

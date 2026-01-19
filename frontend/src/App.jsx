@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { JobProvider } from './context/JobContext';
+import { ToastProvider } from './context/ToastContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { Layout } from './components/Layout';
 
 // Pages
@@ -13,6 +15,7 @@ import { JobDetail } from './pages/jobs/JobDetail';
 import { ApplicationForm } from './pages/application/ApplicationForm';
 import { Dashboard } from './pages/dashboard/Dashboard';
 import { InterviewRoom } from './pages/interview/InterviewRoom';
+import { Profile } from './pages/profile/Profile';
 import { Button } from './components/ui/Button';
 import { Link } from 'react-router-dom';
 
@@ -98,10 +101,12 @@ const AdminRoute = ({ children }) => {
 
 function App() {
   return (
-    <AuthProvider>
-      <JobProvider>
-        <BrowserRouter>
-          <Routes>
+    <ToastProvider>
+      <AuthProvider>
+        <NotificationProvider>
+          <JobProvider>
+            <BrowserRouter>
+              <Routes>
             {/* Public Routes */}
             <Route element={<Layout><Outlet /></Layout>}>
               <Route path="/" element={<Home />} />
@@ -121,6 +126,12 @@ function App() {
               <Route path="/dashboard" element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              } />
+
+              <Route path="/profile" element={
+                <ProtectedRoute>
+                  <Profile />
                 </ProtectedRoute>
               } />
               
@@ -146,9 +157,11 @@ function App() {
               <Route index element={<Navigate to="dashboard" />} />
             </Route>
           </Routes>
-        </BrowserRouter>
-      </JobProvider>
-    </AuthProvider>
+            </BrowserRouter>
+          </JobProvider>
+        </NotificationProvider>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 

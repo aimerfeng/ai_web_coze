@@ -2,12 +2,17 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/Button';
-import { Briefcase, User, LogOut, Menu, X } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Briefcase, User, LogOut, Menu, X, Bell, ChevronDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { FluidBackground } from './FluidBackground';
+import { useNotifications } from '../context/NotificationContext';
+import { CompanyChat } from './CompanyChat';
 
 export function Layout({ children }) {
   const { user, logout } = useAuth();
+  const { notifications, unreadCount, markAsRead } = useNotifications();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -58,18 +63,105 @@ export function Layout({ children }) {
                     ))}
                   </div>
                   
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm font-medium text-slate-700 bg-white/30 px-3 py-1.5 rounded-lg border border-white/40 shadow-sm">
-                      {user.name}
-                    </span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={handleLogout}
-                      className="hover:bg-red-50 hover:text-red-600 rounded-full w-9 h-9 p-0 flex items-center justify-center transition-colors"
+                  <div className="flex items-center gap-4 relative">
+                    {/* Notification Bell */}
+                    <button 
+                      className="relative p-2 text-slate-600 hover:bg-white/50 rounded-full transition-colors"
+                      onClick={() => setShowNotifications(!showNotifications)}
                     >
-                      <LogOut className="w-4 h-4" />
-                    </Button>
+                      <Bell className="w-5 h-5" />
+                      {unreadCount > 0 && (
+                        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
+                      )}
+                    </button>
+
+                    {/* Notification Drawer */}
+                    <AnimatePresence>
+                      {showNotifications && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={() => setShowNotifications(false)} 
+                          />
+                          <motion.div
+                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                            className="absolute top-12 right-0 w-80 bg-white rounded-xl shadow-2xl border border-slate-100 z-50 overflow-hidden"
+                          >
+                            <div className="p-4 border-b border-slate-50 flex justify-between items-center">
+                              <h3 className="font-bold text-slate-900">通知中心</h3>
+                              <span className="text-xs text-slate-500">{unreadCount} 未读</span>
+                            </div>
+                            <div className="max-h-[400px] overflow-y-auto">
+                              {notifications.length === 0 ? (
+                                <div className="p-8 text-center text-slate-400 text-sm">
+                                  暂无通知
+                                </div>
+                              ) : (
+                                <div className="divide-y divide-slate-50">
+                                  {notifications.map(n => (
+                                    <div 
+                                      key={n.id} 
+                                      className={`p-4 hover:bg-slate-50 transition-colors cursor-pointer ${n.is_read ? 'opacity-60' : 'bg-blue-50/30'}`}
+                                      onClick={() => markAsRead(n.id)}
+                                    >
+                                      <div className="flex justify-between items-start mb-1">
+                                        <h4 className="text-sm font-medium text-slate-900">{n.title}</h4>
+                                        <span className="text-[10px] text-slate-400">
+                                          {new Date(n.created_at).toLocaleDateString()}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-slate-600 line-clamp-2">{n.message}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+
+                    <div className="relative">
+                      <button
+                        className="flex items-center gap-2 text-sm font-medium text-slate-700 bg-white/30 px-3 py-1.5 rounded-lg border border-white/40 shadow-sm hover:bg-white/40 transition-colors"
+                        onClick={() => setShowUserMenu((v) => !v)}
+                      >
+                        {user.name}
+                        <ChevronDown className="w-4 h-4 text-slate-500" />
+                      </button>
+
+                      <AnimatePresence>
+                        {showUserMenu && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                            <motion.div
+                              initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                              className="absolute right-0 top-12 z-50 w-56 bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden"
+                            >
+                              <Link
+                                to="/profile"
+                                className="flex items-center gap-2 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                onClick={() => setShowUserMenu(false)}
+                              >
+                                <User className="w-4 h-4 text-slate-500" />
+                                个人信息
+                              </Link>
+                              <button
+                                onClick={() => { setShowUserMenu(false); handleLogout(); }}
+                                className="w-full flex items-center gap-2 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                              >
+                                <LogOut className="w-4 h-4" />
+                                退出登录
+                              </button>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
                 </>
               ) : (
@@ -115,6 +207,14 @@ export function Layout({ children }) {
                   {item.label}
                 </Link>
               ))}
+              <Link
+                to="/profile"
+                className="flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-slate-50 text-slate-700"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <User className="w-5 h-5" />
+                个人信息
+              </Link>
               <div className="h-px bg-slate-100 my-2" />
               <button 
                 onClick={() => { handleLogout(); setIsMenuOpen(false); }}
@@ -141,6 +241,8 @@ export function Layout({ children }) {
       <main className="pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto z-10 relative">
         {children}
       </main>
+      {/* Global AI Chatbot */}
+      <CompanyChat />
     </div>
   );
 }

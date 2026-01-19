@@ -52,11 +52,11 @@ export const AuthProvider = ({ children }) => {
     // User will be fetched by useEffect
   };
 
-  const register = async (email, password) => {
+  const register = async (fullName, email, password, verificationCode) => {
     const res = await fetch(`${API_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, full_name: email.split('@')[0] }),
+      body: JSON.stringify({ email, password, full_name: fullName, verification_code: verificationCode }),
     });
 
     if (!res.ok) {
