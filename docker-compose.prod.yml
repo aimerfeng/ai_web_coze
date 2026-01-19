@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  backend:
+    image: aimerfeng/web_coze_foraimer_hr:backend
+    container_name: hr_backend
+    volumes:
+      - ./uploads:/app/uploads
+      - ./sql_app.db:/app/sql_app.db
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+    ports:
+      - "8000:8000"
+    restart: always
+
+  frontend:
+    image: aimerfeng/web_coze_foraimer_hr:frontend
+    container_name: hr_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always
