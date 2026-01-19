@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useJobs } from '../../context/JobContext';
 import { Card } from '../../components/ui/Card';
@@ -13,7 +13,7 @@ export function ApplicationForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { jobs, submitApplication, loading: jobsLoading } = useJobs();
-  const { token } = useAuth(); // Need token for direct parse call
+  const { token, user } = useAuth(); // Need token for direct parse call
   const job = jobs.find(j => j.id == id);
   const { addToast } = useToast();
 
@@ -36,6 +36,42 @@ export function ApplicationForm() {
   const [showSmartForm, setShowSmartForm] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+  // Auto-fill from Profile
+  useEffect(() => {
+    const fetchProfile = async () => {
+        try {
+            const res = await fetch(`${API_URL}/users/me/profile`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.profile_data) {
+                    const p = data.profile_data;
+                    setSmartData(prev => ({
+                        ...prev,
+                        skills: p.skills || [],
+                        education: p.education?.map(e => ({
+                            school: e.school,
+                            degree: e.degree,
+                            year: e.endDate // Mapping endDate to year for simplicity in this form
+                        })) || [],
+                        experience: p.experience?.map(e => ({
+                            company: e.company,
+                            role: e.title,
+                            year: e.startDate + '-' + e.endDate
+                        })) || []
+                    }));
+                    if (p.skills?.length > 0) setShowSmartForm(true);
+                    addToast('已自动加载您的个人档案信息', 'success');
+                }
+            }
+        } catch (e) {
+            console.error("Failed to load profile", e);
+        }
+    };
+    if (token) fetchProfile();
+  }, [token]);
 
   if (jobsLoading) return <div className="flex justify-center p-10">Loading jobs...</div>;
   if (!job) return <div>Job not found (ID: {id})</div>;

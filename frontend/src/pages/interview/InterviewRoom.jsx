@@ -1,32 +1,72 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, Settings, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 
 export function InterviewRoom() {
+  const [step, setStep] = useState('CHECK'); // CHECK | ROOM
   const [status, setStatus] = useState('CONNECTING');
   const [messages, setMessages] = useState([]);
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
+  const [permissionError, setPermissionError] = useState(null);
+  
   const navigate = useNavigate();
   const { token, user } = useAuth();
   
   const wsRef = useRef(null);
   const videoRef = useRef(null);
+  const previewVideoRef = useRef(null); // For pre-flight check
   const mediaRecorderRef = useRef(null);
   const canvasRef = useRef(null);
   const pingIntervalRef = useRef(null);
+  const streamRef = useRef(null);
 
+  // Pre-flight check effect
   useEffect(() => {
+    if (step === 'CHECK') {
+      startCameraPreview();
+    }
+    return () => {
+      // Cleanup stream when unmounting or switching to ROOM (room handles its own stream)
+      if (step === 'CHECK' && streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [step]);
+
+  const startCameraPreview = async () => {
+    try {
+      setPermissionError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      streamRef.current = stream;
+      if (previewVideoRef.current) {
+        previewVideoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error("Media Error:", err);
+      setPermissionError("无法访问摄像头或麦克风。请检查设备权限设置。");
+    }
+  };
+
+  const joinInterview = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop()); // Stop preview stream
+    }
+    setStep('ROOM');
+  };
+
+  // Main Interview Logic
+  useEffect(() => {
+    if (step !== 'ROOM') return;
     if (!token) {
         navigate('/login');
         return;
     }
 
     const connectWebSocket = () => {
-        // Append token to URL
         const wsBaseUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
         const wsUrl = `${wsBaseUrl}/ws/interview?token=${token}`;
         wsRef.current = new WebSocket(wsUrl);
@@ -35,14 +75,12 @@ export function InterviewRoom() {
             console.log('WS Connected');
             setStatus('READY');
             
-            // Start Heartbeat
             pingIntervalRef.current = setInterval(() => {
                 if (wsRef.current?.readyState === WebSocket.OPEN) {
                     wsRef.current.send(JSON.stringify({ type: 'PING' }));
                 }
-            }, 30000); // 30s
+            }, 30000);
 
-            // Send Init
             wsRef.current.send(JSON.stringify({
                 type: 'START_INTERVIEW',
                 payload: { name: user?.name || 'Candidate', role: 'Python Dev' }
@@ -66,7 +104,7 @@ export function InterviewRoom() {
                     } else if (data.type === 'STATE_CHANGE') {
                         if (data.state === 'THINKING') setStatus('THINKING');
                     } else if (data.type === 'INTERVIEW_END') {
-                        alert('Interview Finished!');
+                        alert('面试已结束');
                         navigate('/dashboard');
                     }
                 } catch (e) {
@@ -76,27 +114,19 @@ export function InterviewRoom() {
         };
 
         wsRef.current.onclose = () => {
-            console.log('WS Closed, attempting reconnect...');
+            console.log('WS Closed');
             setStatus('CONNECTING');
             clearInterval(pingIntervalRef.current);
-            // Simple reconnect logic (exponential backoff could be better)
-            setTimeout(connectWebSocket, 3000);
-        };
-
-        wsRef.current.onerror = (err) => {
-            console.error('WS Error', err);
-            wsRef.current.close();
         };
     };
 
     connectWebSocket();
 
-    // Initialize Media
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then(stream => {
         if (videoRef.current) videoRef.current.srcObject = stream;
+        streamRef.current = stream; // Keep ref to stop later
         
-        // Setup Audio Recorder
         const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
         mediaRecorderRef.current = mediaRecorder;
         
@@ -107,15 +137,11 @@ export function InterviewRoom() {
         };
         mediaRecorder.start(1000);
 
-        // Setup Video Frame Analysis (Observer)
-        // Capture frame every 1s
         const videoTrack = stream.getVideoTracks()[0];
-        const imageCapture = new ImageCapture(videoTrack);
         
         const frameInterval = setInterval(async () => {
             if (status === 'LISTENING' || status === 'SPEAKING' || status === 'THINKING') {
                 try {
-                    // Draw video to canvas to get base64
                     if (!canvasRef.current || !videoRef.current) return;
                     
                     const ctx = canvasRef.current.getContext('2d');
@@ -123,7 +149,7 @@ export function InterviewRoom() {
                     canvasRef.current.height = videoRef.current.videoHeight;
                     ctx.drawImage(videoRef.current, 0, 0);
                     
-                    const base64Frame = canvasRef.current.toDataURL('image/jpeg', 0.5); // Low quality for speed
+                    const base64Frame = canvasRef.current.toDataURL('image/jpeg', 0.5);
                     
                     if (wsRef.current?.readyState === WebSocket.OPEN) {
                         wsRef.current.send(JSON.stringify({
@@ -135,28 +161,106 @@ export function InterviewRoom() {
                     console.error("Frame capture error", e);
                 }
             }
-        }, 1000); // 1 FPS for risk control
+        }, 1000);
 
         return () => clearInterval(frameInterval);
+      })
+      .catch(err => {
+        console.error("Room Media Error:", err);
+        setPermissionError("面试中途设备连接断开，请刷新页面重试。");
       });
 
     return () => {
       wsRef.current?.close();
       mediaRecorderRef.current?.stop();
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
       clearInterval(pingIntervalRef.current);
     };
-  }, [token, navigate, user]);
+  }, [step, token, navigate, user]);
 
   const addMessage = (sender, text) => {
     setMessages(prev => [...prev, { sender, text }]);
   };
 
-  const toggleMic = () => setIsMicOn(!isMicOn);
+  const toggleMic = () => {
+    if (streamRef.current) {
+      const audioTrack = streamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !isMicOn;
+        setIsMicOn(!isMicOn);
+      }
+    }
+  };
+
+  const toggleVideo = () => {
+    if (streamRef.current) {
+      const videoTrack = streamRef.current.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !isVideoOn;
+        setIsVideoOn(!isVideoOn);
+      }
+    }
+  };
   
   const handleEndCall = () => {
     wsRef.current?.close();
     navigate('/dashboard');
   };
+
+  if (step === 'CHECK') {
+    return (
+      <div className="min-h-[calc(100vh-6rem)] flex items-center justify-center p-4">
+        <Card className="w-full max-w-2xl p-8 space-y-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-slate-900">设备检测</h1>
+            <p className="text-slate-500 mt-2">在进入面试前，请确保您的摄像头和麦克风工作正常。</p>
+          </div>
+
+          <div className="relative aspect-video bg-black rounded-2xl overflow-hidden shadow-inner">
+            {permissionError ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-red-500 bg-red-50 p-6 text-center">
+                <AlertCircle className="w-12 h-12 mb-4" />
+                <p className="font-bold">无法访问设备</p>
+                <p className="text-sm mt-2">{permissionError}</p>
+                <Button variant="outline" className="mt-6" onClick={startCameraPreview}>
+                  重试
+                </Button>
+              </div>
+            ) : (
+              <video 
+                ref={previewVideoRef} 
+                autoPlay 
+                muted 
+                className="w-full h-full object-cover transform scale-x-[-1]" 
+              />
+            )}
+            
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/50 backdrop-blur rounded-full text-white text-sm flex items-center gap-2">
+              {permissionError ? <AlertCircle className="w-4 h-4 text-red-400" /> : <CheckCircle className="w-4 h-4 text-green-400" />}
+              {permissionError ? "设备异常" : "设备正常"}
+            </div>
+          </div>
+
+          <div className="flex justify-center gap-4">
+             <Button variant="secondary" onClick={() => navigate('/dashboard')}>
+               取消
+             </Button>
+             <Button 
+               size="lg" 
+               onClick={joinInterview} 
+               disabled={!!permissionError}
+               className="shadow-xl shadow-primary-500/20"
+             >
+               <Video className="w-5 h-5 mr-2" />
+               加入面试
+             </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="h-[calc(100vh-6rem)] flex flex-col md:flex-row gap-6 animate-fade-in">
@@ -198,7 +302,7 @@ export function InterviewRoom() {
               {isMicOn ? <Mic /> : <MicOff />}
             </button>
             <button 
-              onClick={() => setIsVideoOn(!isVideoOn)}
+              onClick={toggleVideo}
               className={`p-4 rounded-full transition-all ${isVideoOn ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-red-500 text-white'}`}
             >
               {isVideoOn ? <Video /> : <VideoOff />}

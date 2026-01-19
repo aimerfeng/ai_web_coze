@@ -1,41 +1,69 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Search, Filter, Eye, FileText, Video, MessageSquare, CheckCircle, XCircle, Send, Download, Brain } from 'lucide-react';
+import { Search, Filter, Eye, FileText, Video, MessageSquare, CheckCircle, XCircle, Send, Download, Brain, Loader } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { AnimatePresence, motion } from 'framer-motion';
 
 export function AdminCandidates() {
   const [activeTab, setActiveTab] = useState('全部');
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(null); // id being updated
   const [expandedId, setExpandedId] = useState(null); // For detail view
   const { token } = useAuth();
+  const { addToast } = useToast();
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-  useEffect(() => {
-    const fetchCandidates = async () => {
-      try {
-        const res = await fetch(`${API_URL}/admin/applications`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCandidates(data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch candidates:", error);
-      } finally {
-        setLoading(false);
+  const fetchCandidates = async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/applications`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCandidates(data);
       }
-    };
+    } catch (error) {
+      console.error("Failed to fetch candidates:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchCandidates();
   }, [token]);
 
+  const updateStatus = async (appId, newStatus) => {
+    setUpdating(appId);
+    try {
+      const res = await fetch(`${API_URL}/admin/applications/${appId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      if (!res.ok) throw new Error('操作失败');
+      
+      addToast('状态更新成功', 'success');
+      // Refresh list
+      fetchCandidates();
+    } catch (error) {
+      addToast(error.message, 'error');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const statusMap = {
     'pending': { label: '待筛选', color: 'bg-yellow-100 text-yellow-700' },
+    'interview_ready': { label: '待面试', color: 'bg-green-100 text-green-700' },
     'interviewing': { label: '面试中', color: 'bg-blue-100 text-blue-700' },
     'review': { label: '待复核', color: 'bg-purple-100 text-purple-700' },
     'rejected': { label: '已淘汰', color: 'bg-red-100 text-red-700' },
@@ -44,7 +72,7 @@ export function AdminCandidates() {
 
   const filteredCandidates = activeTab === '全部' 
     ? candidates 
-    : candidates.filter(c => statusMap[c.status].label === activeTab);
+    : candidates.filter(c => (statusMap[c.status]?.label || c.status) === activeTab);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -67,7 +95,7 @@ export function AdminCandidates() {
 
       {/* Kanban-like Filter Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {['全部', '待筛选', '面试中', '待复核', '已录用', '已淘汰'].map((tab) => (
+        {['全部', '待筛选', '待面试', '面试中', '待复核', '已录用', '已淘汰'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -122,8 +150,8 @@ export function AdminCandidates() {
                 )}
 
                 <div className="flex items-center gap-4">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusMap[c.status].color}`}>
-                    {statusMap[c.status].label}
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusMap[c.status]?.color || 'bg-gray-100'}`}>
+                    {statusMap[c.status]?.label || c.status}
                   </span>
                   <span className="text-sm text-slate-400">{c.appliedAt}</span>
                 </div>
@@ -193,17 +221,32 @@ export function AdminCandidates() {
                     <div className="space-y-4 border-l border-slate-200 pl-6">
                       <h4 className="font-bold text-slate-900">操作</h4>
                       <div className="space-y-2">
-                        <Button className="w-full justify-start">
-                          <Video className="w-4 h-4 mr-2" /> 发起 AI 面试
+                        <Button 
+                          className="w-full justify-start"
+                          onClick={() => updateStatus(c.id, 'interview_ready')}
+                          disabled={updating === c.id || c.status === 'interview_ready'}
+                        >
+                          {updating === c.id ? <Loader className="w-4 h-4 animate-spin mr-2"/> : <Video className="w-4 h-4 mr-2" />}
+                          邀请 AI 面试
                         </Button>
                         <Button variant="secondary" className="w-full justify-start">
                           <MessageSquare className="w-4 h-4 mr-2" /> 发送消息
                         </Button>
                         <div className="pt-4 flex gap-2">
-                          <Button variant="ghost" className="flex-1 text-green-600 hover:bg-green-50 hover:text-green-700">
-                            <CheckCircle className="w-4 h-4 mr-2" /> 通过
+                          <Button 
+                            variant="ghost" 
+                            className="flex-1 text-green-600 hover:bg-green-50 hover:text-green-700"
+                            onClick={() => updateStatus(c.id, 'offered')}
+                            disabled={updating === c.id || c.status === 'offered'}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-2" /> 录用
                           </Button>
-                          <Button variant="ghost" className="flex-1 text-red-600 hover:bg-red-50 hover:text-red-700">
+                          <Button 
+                            variant="ghost" 
+                            className="flex-1 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            onClick={() => updateStatus(c.id, 'rejected')}
+                            disabled={updating === c.id || c.status === 'rejected'}
+                          >
                             <XCircle className="w-4 h-4 mr-2" /> 淘汰
                           </Button>
                         </div>

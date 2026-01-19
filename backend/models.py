@@ -73,9 +73,15 @@ class InterviewRecord(Base):
     application_id = Column(Integer, ForeignKey("applications.id"))
     start_time = Column(DateTime)
     end_time = Column(DateTime, nullable=True)
+    
+    # AI Analysis Fields
     risk_logs = Column(Text, nullable=True)
     transcript = Column(Text, nullable=True)
-    report = Column(Text, nullable=True)
+    transcript_with_timestamps = Column(JSON, nullable=True) # Full structured transcript
+    report = Column(Text, nullable=True) # Summary text
+    analysis_json = Column(JSON, nullable=True) # Radar chart data, detailed scores
+    video_url = Column(String, nullable=True) # Recording URL
+    pre_screening_result = Column(JSON, nullable=True) # Generated questions from screening agent
 
     application = relationship("Application", back_populates="interviews")
 

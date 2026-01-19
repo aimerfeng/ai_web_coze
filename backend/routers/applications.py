@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Body
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -23,6 +23,20 @@ class ApplicationCreate(BaseModel):
     job_id: int
     github_link: Optional[str] = None
     resume_path: Optional[str] = None
+
+class ApplicationStatusUpdate(BaseModel):
+    status: str
+
+def create_notification(db: Session, user_id: int, title: str, message: str, type: str = "info"):
+    notif = models.Notification(
+        user_id=user_id,
+        title=title,
+        message=message,
+        type=type,
+        created_at=datetime.utcnow()
+    )
+    db.add(notif)
+    db.commit()
 
 def validate_pdf_header(file: UploadFile):
     """
@@ -125,6 +139,18 @@ def submit_application(
     db.add(application)
     db.commit()
     db.refresh(application)
+
+    # 4. Trigger Notification
+    job = db.query(models.Job).filter(models.Job.id == job_id).first()
+    job_title = job.title if job else "Unknown Job"
+    create_notification(
+        db, 
+        current_user.id, 
+        "申请已提交", 
+        f"您对【{job_title}】职位的申请已成功提交，正在等待筛选。",
+        "success"
+    )
+
     return application
 
 @router.get("/applications/me")
@@ -158,3 +184,44 @@ def get_all_applications(current_user: models.User = Depends(auth.get_current_ad
             "github_link": app.github_link
         })
     return apps_data
+
+@router.put("/admin/applications/{app_id}/status")
+def update_application_status(
+    app_id: int, 
+    payload: ApplicationStatusUpdate,
+    current_user: models.User = Depends(auth.get_current_admin), 
+    db: Session = Depends(get_db)
+):
+    app = db.query(models.Application).filter(models.Application.id == app_id).first()
+    if not app:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    old_status = app.status
+    app.status = payload.status
+    db.commit()
+
+    # Trigger Notification if status changed
+    if old_status != payload.status:
+        job = db.query(models.Job).filter(models.Job.id == app.job_id).first()
+        job_title = job.title if job else "职位"
+        
+        title = "申请状态更新"
+        message = f"您申请的【{job_title}】状态已更新为：{payload.status}"
+        type = "info"
+
+        if payload.status == "interview_ready":
+            title = "面试邀请"
+            message = f"恭喜！您申请的【{job_title}】已通过初筛，请前往控制台开始 AI 面试。"
+            type = "success"
+        elif payload.status == "rejected":
+            title = "申请反馈"
+            message = f"很遗憾，您申请的【{job_title}】未通过筛选。感谢您的关注。"
+            type = "warning"
+        elif payload.status == "offered":
+            title = "录用通知"
+            message = f"恭喜！您已被【{job_title}】职位录用！请留意后续邮件通知。"
+            type = "success"
+
+        create_notification(db, app.user_id, title, message, type)
+
+    return {"status": "success", "new_status": app.status}

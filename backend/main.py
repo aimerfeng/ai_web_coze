@@ -27,6 +27,7 @@ if not SECRET_KEY or SECRET_KEY == "supersecretkey123":
 
 # Routers
 from routers import auth, jobs, applications, users, ai, notifications, interview
+from routers import webhooks as webhooks_router
 
 # Create DB Tables
 Base.metadata.create_all(bind=engine)
@@ -92,6 +93,7 @@ app.include_router(applications.router)
 app.include_router(ai.router)
 app.include_router(notifications.router)
 app.include_router(interview.router)
+app.include_router(webhooks_router.router)
 
 if __name__ == "__main__":
     import uvicorn

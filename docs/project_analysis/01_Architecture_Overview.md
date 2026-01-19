@@ -47,7 +47,7 @@
 
 ## 4. 目录结构说明
 ```text
-.
+.   
 ├── backend/                # Python 核心服务
 │   ├── main.py             # 入口：路由分发、WebSocket 握手
 │   ├── controller.py       # 面试流程控制器 (协调 STT, TTS, Coze, Observer)
