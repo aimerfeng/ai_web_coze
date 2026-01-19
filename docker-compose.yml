@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: hr_backend
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./sql_app.db:/app/sql_app.db
+    environment:
+      - SECRET_KEY=production_secret_key_change_me
+      - ALLOWED_ORIGINS=*
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: hr_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
