@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { JobProvider } from './context/JobContext';
 import { Layout } from './components/Layout';
@@ -74,10 +74,25 @@ function FeatureCard({ title, desc, delay }) {
   );
 }
 
+import { AdminLogin } from './pages/admin/AdminLogin';
+import { AdminLayout } from './pages/admin/AdminLayout';
+import { AdminJobs } from './pages/admin/AdminJobs';
+import { AdminJobCreate } from './pages/admin/AdminJobCreate';
+import { AdminCandidates } from './pages/admin/AdminCandidates';
+import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { AdminSettings } from './pages/admin/AdminSettings';
+
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <div>Loading...</div>;
   if (!user) return <Navigate to="/login" />;
+  return children;
+};
+
+const AdminRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <div>Loading...</div>;
+  if (!user || user.role !== 'admin') return <Navigate to="/admin/login" />;
   return children;
 };
 
@@ -86,8 +101,9 @@ function App() {
     <AuthProvider>
       <JobProvider>
         <BrowserRouter>
-          <Layout>
-            <Routes>
+          <Routes>
+            {/* Public Routes */}
+            <Route element={<Layout><Outlet /></Layout>}>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -113,8 +129,23 @@ function App() {
                   <InterviewRoom />
                 </ProtectedRoute>
               } />
-            </Routes>
-          </Layout>
+            </Route>
+
+            {/* Admin Routes */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin" element={
+              <AdminRoute>
+                <AdminLayout />
+              </AdminRoute>
+            }>
+              <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="jobs" element={<AdminJobs />} />
+              <Route path="jobs/new" element={<AdminJobCreate />} />
+              <Route path="candidates" element={<AdminCandidates />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route index element={<Navigate to="dashboard" />} />
+            </Route>
+          </Routes>
         </BrowserRouter>
       </JobProvider>
     </AuthProvider>

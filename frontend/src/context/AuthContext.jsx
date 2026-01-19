@@ -33,8 +33,9 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, [token]);
 
-  const login = async (email, password) => {
-    const res = await fetch(`${API_URL}/auth/login`, {
+  const login = async (email, password, isAdmin = false) => {
+    const endpoint = isAdmin ? '/admin/login' : '/auth/login';
+    const res = await fetch(`${API_URL}${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),

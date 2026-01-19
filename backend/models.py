@@ -7,6 +7,7 @@ import enum
 class UserRole(str, enum.Enum):
     CANDIDATE = "candidate"
     HR = "hr"
+    ADMIN = "admin"
 
 class User(Base):
     __tablename__ = "users"
@@ -20,6 +21,12 @@ class User(Base):
     
     applications = relationship("Application", back_populates="candidate")
 
+class JobType(str, enum.Enum):
+    FULL_TIME = "全职"
+    PART_TIME = "兼职"
+    OUTSOURCE = "外包"
+    INTERN = "实习"
+
 class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = {'extend_existing': True}
@@ -28,9 +35,13 @@ class Job(Base):
     title = Column(String, index=True)
     department = Column(String)
     location = Column(String)
+    type = Column(String, default="全职") # JobType
+    salary_range = Column(String)
     description = Column(Text)
     requirements = Column(Text)
-    knowledge_base = Column(Text)
+    knowledge_base = Column(Text) # Private internal KB for AI
+    public_knowledge = Column(Text, nullable=True) # Public info for candidates
+    is_active = Column(Integer, default=1) # 1=active, 0=inactive
     
     applications = relationship("Application", back_populates="job")
 

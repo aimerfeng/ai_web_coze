@@ -4,16 +4,17 @@ import { useJobs } from '../../context/JobContext';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { MapPin, Briefcase, ArrowLeft, BookOpen } from 'lucide-react';
+import { JobChat } from '../../components/JobChat';
 
 export function JobDetail() {
   const { id } = useParams();
   const { jobs } = useJobs();
-  const job = jobs.find(j => j.id === id);
+  const job = jobs.find(j => j.id == id); // Use loose equality for string/number id match
 
   if (!job) return <div>Job not found</div>;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-slide-up">
+    <div className="max-w-4xl mx-auto space-y-6 animate-slide-up pb-20">
       <Link to="/jobs" className="inline-flex items-center text-slate-500 hover:text-slate-900 transition-colors">
         <ArrowLeft className="w-4 h-4 mr-2" />
         返回职位列表
@@ -35,11 +36,16 @@ export function JobDetail() {
               <div className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-sm font-medium">
                 {job.salary}
               </div>
+              {job.type && (
+                <div className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-sm font-medium">
+                  {job.type}
+                </div>
+              )}
             </div>
 
             <div className="prose prose-slate max-w-none">
               <h3 className="text-lg font-semibold text-slate-900">职位描述</h3>
-              <p className="text-slate-600">{job.description}</p>
+              <p className="text-slate-600 whitespace-pre-wrap">{job.description}</p>
               
               <h3 className="text-lg font-semibold text-slate-900 mt-6">职位要求</h3>
               <ul className="list-disc pl-5 text-slate-600 space-y-1">
@@ -50,15 +56,17 @@ export function JobDetail() {
             </div>
           </Card>
 
-          <Card className="bg-blue-50/50 border-blue-100">
-            <div className="flex items-start gap-3">
-              <BookOpen className="w-5 h-5 text-primary-600 mt-1" />
-              <div>
-                <h3 className="font-semibold text-primary-900">公开知识库</h3>
-                <p className="text-sm text-primary-700 mt-1">{job.knowledgeBase}</p>
+          {job.knowledgeBase && (
+            <Card className="bg-blue-50/50 border-blue-100">
+              <div className="flex items-start gap-3">
+                <BookOpen className="w-5 h-5 text-primary-600 mt-1" />
+                <div>
+                  <h3 className="font-semibold text-primary-900">公开知识库</h3>
+                  <p className="text-sm text-primary-700 mt-1">{job.knowledgeBase}</p>
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -75,6 +83,8 @@ export function JobDetail() {
           </Card>
         </div>
       </div>
+
+      <JobChat job={job} />
     </div>
   );
 }

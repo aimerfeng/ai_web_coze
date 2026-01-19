@@ -1,11 +1,17 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 
 const JobContext = createContext();
 
 export const useJobs = () => useContext(JobContext);
 
 export const JobProvider = ({ children }) => {
-  // Mock Data - editable via "admin" logic if we were building that
+  const { token, user } = useAuth();
+  const [jobs, setJobs] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Mock Company Data
   const [companyInfo] = useState({
     name: "TechFuture Inc.",
     description: "我们致力于构建 AI 驱动招聘的未来。",
@@ -13,73 +19,105 @@ export const JobProvider = ({ children }) => {
     logo: "https://via.placeholder.com/150"
   });
 
-  const [jobs] = useState([
-    {
-      id: "1",
-      title: "高级 Python 后端工程师",
-      department: "工程部",
-      location: "远程",
-      type: "全职",
-      salary: "30k - 50k",
-      tags: ["Python", "FastAPI", "AI"],
-      description: "加入我们的核心团队，构建可扩展的 AI 基础设施。",
-      requirements: [
-        "5年以上 Python 开发经验",
-        "熟悉 FastAPI 和 Asyncio",
-        "了解 LLM 集成"
-      ],
-      knowledgeBase: "我们的技术栈包括 FastAPI, Celery, Redis, 和 PostgreSQL。我们部署在 K8s 上。"
-    },
-    {
-      id: "2",
-      title: "前端开发工程师 (React)",
-      department: "产品部",
-      location: "北京",
-      type: "全职",
-      salary: "20k - 35k",
-      tags: ["React", "Tailwind", "Three.js"],
-      description: "为我们的 AI 产品打造美观、响应式且交互性强的用户界面。",
-      requirements: [
-        "3年以上 React 开发经验",
-        "扎实的 CSS/Tailwind 技能",
-        "有 WebRTC 经验者优先"
-      ],
-      knowledgeBase: "我们所有前端项目都使用 Vite, React 18, 和 Framer Motion。"
-    }
-  ]);
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-  const [applications, setApplications] = useState([]);
+  // Fetch Jobs
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        const res = await fetch(`${API_URL}/jobs`);
+        if (res.ok) {
+          const data = await res.json();
+          // Transform backend data to frontend format if needed
+          // Backend: salary_range, type
+          // Frontend (legacy): salary, tags (can derive from type/dept)
+          const formattedJobs = data.map(j => ({
+            ...j,
+            salary: j.salary_range,
+            tags: [j.department, j.type, j.location].filter(Boolean),
+            requirements: j.requirements ? j.requirements.split('\n') : [] // Assuming stored as text
+          }));
+          setJobs(formattedJobs);
+        }
+      } catch (error) {
+        console.error("Failed to fetch jobs:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchJobs();
+  }, []);
+
+  // Fetch Applications (when user is logged in)
+  useEffect(() => {
+    const fetchApplications = async () => {
+      if (!token) {
+        setApplications([]);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_URL}/applications/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // Map backend application to frontend structure
+          // Backend: job_id, status, created_at
+          const formattedApps = data.map(app => ({
+            id: app.id,
+            jobId: app.job_id,
+            status: app.status,
+            submittedAt: app.created_at,
+            githubLink: app.github_link
+          }));
+          setApplications(formattedApps);
+        }
+      } catch (error) {
+        console.error("Failed to fetch applications:", error);
+      }
+    };
+
+    fetchApplications();
+  }, [token]);
 
   const submitApplication = async (jobId, data) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const newApp = {
-          id: Date.now().toString(),
-          jobId,
-          ...data,
-          status: 'pending', // pending -> processing -> interview_ready
-          submittedAt: new Date().toISOString()
-        };
-        setApplications(prev => [...prev, newApp]);
-        
-        // Mock processing time
-        setTimeout(() => {
-          updateApplicationStatus(newApp.id, 'interview_ready');
-        }, 10000); // 10 seconds for demo instead of 30 mins
+    if (!token) throw new Error("Must be logged in");
 
-        resolve(newApp);
-      }, 1500);
+    const res = await fetch(`${API_URL}/applications`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}` 
+      },
+      body: JSON.stringify({
+        job_id: jobId,
+        github_link: data.githubLink,
+        // resume_path: data.resumePath // Handle file upload separately later
+      }),
     });
-  };
 
-  const updateApplicationStatus = (appId, status) => {
-    setApplications(prev => prev.map(app => 
-      app.id === appId ? { ...app, status } : app
-    ));
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "Application failed");
+    }
+
+    const newApp = await res.json();
+    // Optimistic update or refetch
+    setApplications(prev => [...prev, {
+      id: newApp.id,
+      jobId: newApp.job_id,
+      status: newApp.status,
+      submittedAt: newApp.created_at,
+      githubLink: newApp.github_link
+    }]);
+    
+    return newApp;
   };
 
   return (
-    <JobContext.Provider value={{ jobs, companyInfo, applications, submitApplication }}>
+    <JobContext.Provider value={{ jobs, companyInfo, applications, submitApplication, loading }}>
       {children}
     </JobContext.Provider>
   );

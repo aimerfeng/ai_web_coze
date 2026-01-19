@@ -1,15 +1,16 @@
-import React from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { motion } from 'framer-motion';
-import { LogOut, User, Briefcase, Menu, X } from 'lucide-react';
 import { Button } from './ui/Button';
+import { Briefcase, User, LogOut, Menu, X } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { FluidBackground } from './FluidBackground';
 
 export function Layout({ children }) {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
-  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const navigate = useNavigate();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -22,55 +23,62 @@ export function Layout({ children }) {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 relative overflow-hidden">
-      {/* Background Blobs */}
-      <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-primary-200/30 rounded-full blur-3xl" />
-      <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-purple-200/30 rounded-full blur-3xl" />
+    <div className="min-h-screen relative overflow-hidden bg-slate-50/50">
+      <FluidBackground />
 
-      {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-lg border-b border-white/20 shadow-sm">
+      {/* Navbar - Glassmorphism */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/10 backdrop-blur-md border-b border-white/20 shadow-sm transition-all duration-300 hover:bg-white/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
+            <Link to="/" className="flex items-center gap-2 group">
+              <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-primary-500/30 group-hover:scale-105 transition-transform">
                 AI
               </div>
-              <span className="font-bold text-slate-800 text-lg tracking-tight">智能面试</span>
+              <span className="font-bold text-slate-800 text-lg tracking-tight group-hover:text-primary-700 transition-colors">智能面试</span>
             </Link>
 
             {/* Desktop Nav */}
-            <div className="hidden md:flex items-center gap-6">
+            <div className="hidden md:flex items-center gap-8">
               {user ? (
                 <>
-                  {navItems.map((item) => (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      className={`flex items-center gap-2 text-sm font-medium transition-colors ${
-                        location.pathname === item.path 
-                          ? 'text-primary-600' 
-                          : 'text-slate-600 hover:text-primary-600'
-                      }`}
+                  <div className="flex items-center gap-1 bg-white/30 rounded-full px-2 py-1 backdrop-blur-sm border border-white/40">
+                    {navItems.map((item) => (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                          location.pathname === item.path 
+                            ? 'bg-white shadow-md text-primary-600 scale-105' 
+                            : 'text-slate-600 hover:text-primary-600 hover:bg-white/50'
+                        }`}
+                      >
+                        <item.icon className="w-4 h-4" />
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-slate-700 bg-white/30 px-3 py-1.5 rounded-lg border border-white/40 shadow-sm">
+                      {user.name}
+                    </span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={handleLogout}
+                      className="hover:bg-red-50 hover:text-red-600 rounded-full w-9 h-9 p-0 flex items-center justify-center transition-colors"
                     >
-                      <item.icon className="w-4 h-4" />
-                      {item.label}
-                    </Link>
-                  ))}
-                  <div className="h-6 w-px bg-slate-200" />
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-slate-700">{user.name}</span>
-                    <Button variant="ghost" size="sm" onClick={handleLogout}>
                       <LogOut className="w-4 h-4" />
                     </Button>
                   </div>
                 </>
               ) : (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                   <Link to="/login">
-                    <Button variant="ghost" size="sm">登录</Button>
+                    <Button variant="ghost" size="sm" className="hover:bg-white/40">登录</Button>
                   </Link>
                   <Link to="/register">
-                    <Button variant="primary" size="sm">注册</Button>
+                    <Button variant="primary" size="sm" className="shadow-lg shadow-primary-500/30 hover:shadow-primary-500/40 hover:-translate-y-0.5 transition-all">注册</Button>
                   </Link>
                 </div>
               )}
@@ -78,7 +86,7 @@ export function Layout({ children }) {
 
             {/* Mobile Menu Button */}
             <button 
-              className="md:hidden p-2 text-slate-600"
+              className="md:hidden p-2 text-slate-600 hover:bg-white/20 rounded-lg transition-colors"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
               {isMenuOpen ? <X /> : <Menu />}

@@ -9,8 +9,8 @@ import { Upload, X, FileText, Github, CheckCircle } from 'lucide-react';
 export function ApplicationForm() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { jobs, submitApplication } = useJobs();
-  const job = jobs.find(j => j.id === id);
+  const { jobs, submitApplication, loading: jobsLoading } = useJobs();
+  const job = jobs.find(j => j.id == id); // Loose equality
 
   const [loading, setLoading] = useState(false);
   const [githubLink, setGithubLink] = useState('');
@@ -20,7 +20,8 @@ export function ApplicationForm() {
     portfolio: null
   });
 
-  if (!job) return <div>Job not found</div>;
+  if (jobsLoading) return <div className="flex justify-center p-10">Loading jobs...</div>;
+  if (!job) return <div>Job not found (ID: {id})</div>;
 
   const handleFileChange = (type, e) => {
     const file = e.target.files[0];
